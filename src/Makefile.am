@@ -116,10 +116,12 @@ fwup_CFLAGS = -Wall -D_FILE_OFFSET_BITS=64 \
 	      -I$(srcdir)/3rdparty/monocypher-3.1.3/src/optional \
 	      $(CONFUSE_CFLAGS) \
 	      $(ARCHIVE_CFLAGS) \
+	      $(OPENSSL_CFLAGS) \
 	      $(PTHREAD_CFLAGS)
 
 fwup_LDADD = $(CONFUSE_LIBS) \
 	     $(ARCHIVE_LIBS) \
+	     $(OPENSSL_LIBS) \
 	     $(PTHREAD_LIBS)
 
 if ENABLE_GCOV

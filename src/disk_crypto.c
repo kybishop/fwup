@@ -15,7 +15,7 @@
  */
 
 #include "disk_crypto.h"
-#include "3rdparty/tiny-AES-c/aes.h"
+#include <openssl/evp.h>
 #include "3rdparty/base64.h"
 #include "monocypher.h"
 
@@ -23,45 +23,70 @@
 
 #define MAX_CIPHER_LEN 32
 #define MAX_SECRET_LEN 64
+#define AES_BLOCKLEN 16
+#define AES_KEYLEN 32
 
 static void aes_cbc_plain_encrypt(struct disk_crypto *dc, uint32_t lba, const uint8_t *input, uint8_t *output)
 {
     uint8_t iv[AES_BLOCKLEN] = {0};
     copy_le32(iv, lba);
 
-    struct AES_ctx ctx;
-    AES_init_ctx_iv(&ctx, dc->key, iv);
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx)
+        fwup_err(EXIT_FAILURE, "EVP_CIPHER_CTX_new failed");
 
-    // Tiny AES only encrypts in-place, so copy to the output if necessary.
-    if (output != input)
-        memcpy(output, input, FWUP_BLOCK_SIZE);
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, dc->key, iv) != 1)
+        fwup_err(EXIT_FAILURE, "EVP_EncryptInit_ex failed");
 
-    AES_CBC_encrypt_buffer(&ctx, output, FWUP_BLOCK_SIZE);
+    // Disable padding since we're always encrypting exact block sizes
+    EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    int len;
+    if (EVP_EncryptUpdate(ctx, output, &len, input, FWUP_BLOCK_SIZE) != 1)
+        fwup_err(EXIT_FAILURE, "EVP_EncryptUpdate failed");
+
+    int final_len;
+    if (EVP_EncryptFinal_ex(ctx, output + len, &final_len) != 1)
+        fwup_err(EXIT_FAILURE, "EVP_EncryptFinal_ex failed");
+
+    EVP_CIPHER_CTX_free(ctx);
 }
 static void aes_cbc_plain_decrypt(struct disk_crypto *dc, uint32_t lba, const uint8_t *input, uint8_t *output)
 {
     uint8_t iv[AES_BLOCKLEN] = {0};
     copy_le32(iv, lba);
 
-    struct AES_ctx ctx;
-    AES_init_ctx_iv(&ctx, dc->key, iv);
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx)
+        fwup_err(EXIT_FAILURE, "EVP_CIPHER_CTX_new failed");
 
-    // Tiny AES only decrypts in-place, so copy to the output if necessary.
-    if (output != input)
-        memcpy(output, input, FWUP_BLOCK_SIZE);
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, dc->key, iv) != 1)
+        fwup_err(EXIT_FAILURE, "EVP_DecryptInit_ex failed");
 
-    AES_CBC_decrypt_buffer(&ctx, output, FWUP_BLOCK_SIZE);
+    // Disable padding since we're always decrypting exact block sizes
+    EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    int len;
+    if (EVP_DecryptUpdate(ctx, output, &len, input, FWUP_BLOCK_SIZE) != 1)
+        fwup_err(EXIT_FAILURE, "EVP_DecryptUpdate failed");
+
+    int final_len;
+    if (EVP_DecryptFinal_ex(ctx, output + len, &final_len) != 1)
+        fwup_err(EXIT_FAILURE, "EVP_DecryptFinal_ex failed");
+
+    EVP_CIPHER_CTX_free(ctx);
 }
 static int aes_cbc_plain_init(struct disk_crypto *dc, const char *secret_key)
 {
     dc->encrypt = aes_cbc_plain_encrypt;
     dc->decrypt = aes_cbc_plain_decrypt;
+    dc->ctx = NULL;
 
     if (secret_key) {
         if (hex_to_bytes(secret_key, dc->key, AES_KEYLEN) == 0)
             return 0;
 
-        // Try base64 since that was was used in fwup 1.5.0, but it turned out
+        // Try base64 since that was used in fwup 1.5.0, but it turned out
         // to be inconvenient to actually use. Do not copy/paste this to other
         // cipher options.
         size_t decoded_len = AES_KEYLEN;

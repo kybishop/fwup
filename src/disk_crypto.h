@@ -19,6 +19,9 @@
 
 #include "util.h"
 
+// Forward declare EVP_CIPHER_CTX to avoid including OpenSSL headers here
+typedef struct evp_cipher_ctx_st EVP_CIPHER_CTX;
+
 struct disk_crypto;
 typedef void (disk_crypto_fun)(struct disk_crypto *dc, uint32_t lba, const uint8_t *input, uint8_t *output);
 
@@ -27,6 +30,7 @@ struct disk_crypto {
     disk_crypto_fun *decrypt;
     uint8_t key[32];
     off_t base_offset;
+    EVP_CIPHER_CTX *ctx;
 };
 
 int disk_crypto_init(struct disk_crypto *dc, off_t base_offset, int argc, const char *argv[]);

@@ -71,6 +71,7 @@ AS_IF([test "x$PKG_CONFIG" = "xno"],[
 
 PKG_CHECK_MODULES([ARCHIVE], [libarchive], [], AC_MSG_ERROR([Requires libarchive. Libarchive must be built with zlib support.]))
 PKG_CHECK_MODULES([CONFUSE], [libconfuse >= 2.8], [], AC_MSG_ERROR([Requires libconfuse v2.8 or later]))
+PKG_CHECK_MODULES([OPENSSL], [openssl >= 1.1.0], [], AC_MSG_ERROR([Requires OpenSSL v1.1.0 or later for hardware crypto acceleration]))
 
 AC_ARG_WITH([pthreads],
             [AS_HELP_STRING([--with-pthreads],
