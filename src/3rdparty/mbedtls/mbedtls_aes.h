@@ -92,9 +92,17 @@ extern "C" {
  * define externally if desired. */
 
 /* Auto-enable hardware AES paths based on target architecture.
- * Define MBEDTLS_NO_AES_HARDWARE to force software-only. */
+ * Define MBEDTLS_NO_AES_HARDWARE to force software-only.
+ *
+ * On 32-bit ARM (AArch32), GCC's #pragma GCC target("+crypto") cannot
+ * retroactively enable AES intrinsics from arm_neon.h, which is included
+ * before the pragma. Enabling AESCE on AArch32 requires the whole TU to be
+ * compiled with -march=armv8-a+crypto (or equivalent). We skip auto-enabling
+ * here and let callers opt in by defining MBEDTLS_AESCE_C explicitly with the
+ * right compiler flags. AArch64 does not have this issue. */
 #if !defined(MBEDTLS_NO_AES_HARDWARE)
-#  if defined(MBEDTLS_ARCH_IS_ARMV8_A) && !defined(MBEDTLS_AESCE_C)
+#  if defined(MBEDTLS_ARCH_IS_ARMV8_A) && !defined(MBEDTLS_ARCH_IS_ARM32) && \
+      !defined(MBEDTLS_AESCE_C)
 #    define MBEDTLS_AESCE_C
 #  endif
 #  if (defined(MBEDTLS_ARCH_IS_X64) || defined(MBEDTLS_ARCH_IS_X86)) && \
